@@ -1,0 +1,203 @@
+<!doctype html>
+<html lang="en" class="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>__TITLE__</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+  body { font-feature-settings: "tnum"; }
+  .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+</style>
+</head>
+<body class="bg-slate-950 text-slate-200 min-h-screen">
+
+<div id="warn" class="hidden bg-red-600 text-white text-center py-2 text-sm font-semibold">
+  LIVE MODE — REAL MONEY. Orders are sent to the exchange.
+</div>
+
+<div class="max-w-7xl mx-auto px-4 py-5 space-y-5">
+
+  <!-- header -->
+  <header class="flex flex-wrap items-center justify-between gap-3">
+    <div class="flex items-center gap-3">
+      <h1 class="text-xl font-semibold">__TITLE__</h1>
+      <span id="status" class="px-2.5 py-1 rounded-full text-xs font-bold bg-slate-700">…</span>
+      <span id="mode" class="px-2.5 py-1 rounded-full text-xs font-semibold bg-slate-800 border border-slate-700">…</span>
+    </div>
+    <div class="flex items-center gap-4 text-sm text-slate-400">
+      <span>Uptime <b id="uptime" class="text-slate-200">–</b></span>
+      <span id="conn" class="flex items-center gap-1"><i class="inline-block w-2 h-2 rounded-full bg-slate-500"></i> connecting</span>
+      <button id="toggle" class="px-4 py-1.5 rounded-md text-sm font-semibold bg-amber-500 text-slate-900 hover:bg-amber-400 disabled:opacity-40">Pause trading</button>
+    </div>
+  </header>
+
+  <div id="breaker" class="hidden rounded-lg border border-red-500/50 bg-red-500/10 p-3 text-sm text-red-300">
+    <b>Emergency stop.</b> The loss limit (<span id="limit"></span> USDT) was exceeded. Trading is paused. Review the trades below, then press “Resume trading” to start again.
+  </div>
+
+  <!-- KPIs -->
+  <section class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+    <div class="rounded-xl bg-slate-900 border border-slate-800 p-4"><div class="text-xs text-slate-400">Total P&amp;L (USDT eq.)</div><div id="k-pnl" class="text-2xl font-bold mt-1">–</div></div>
+    <div class="rounded-xl bg-slate-900 border border-slate-800 p-4"><div class="text-xs text-slate-400">Trades (win rate)</div><div id="k-trades" class="text-2xl font-bold mt-1">–</div><div id="k-wl" class="text-xs text-slate-500 mt-1"></div></div>
+    <div class="rounded-xl bg-slate-900 border border-slate-800 p-4"><div class="text-xs text-slate-400">Opportunities found</div><div id="k-opps" class="text-2xl font-bold mt-1">–</div><div id="k-rej" class="text-xs text-slate-500 mt-1"></div></div>
+    <div class="rounded-xl bg-slate-900 border border-slate-800 p-4"><div class="text-xs text-slate-400">Market updates / sec</div><div id="k-tps" class="text-2xl font-bold mt-1">–</div></div>
+    <div class="rounded-xl bg-slate-900 border border-slate-800 p-4"><div class="text-xs text-slate-400">Scan latency p50 / p99</div><div id="k-scan" class="text-2xl font-bold mt-1">–</div></div>
+    <div class="rounded-xl bg-slate-900 border border-slate-800 p-4"><div class="text-xs text-slate-400">Detect → filled (median)</div><div id="k-exec" class="text-2xl font-bold mt-1">–</div></div>
+  </section>
+
+  <!-- chart -->
+  <section class="rounded-xl bg-slate-900 border border-slate-800 p-4">
+    <div class="flex items-center justify-between mb-2">
+      <h2 class="text-sm font-semibold text-slate-300">Cumulative P&amp;L</h2>
+      <span id="chart-last" class="text-xs text-slate-400"></span>
+    </div>
+    <svg id="chart" viewBox="0 0 800 160" class="w-full h-40"></svg>
+  </section>
+
+  <!-- wallets + exchanges -->
+  <section class="grid lg:grid-cols-2 gap-5">
+    <div class="rounded-xl bg-slate-900 border border-slate-800 p-4">
+      <h2 class="text-sm font-semibold text-slate-300 mb-3">Wallets</h2>
+      <div id="wallets" class="space-y-4 text-sm"></div>
+    </div>
+    <div class="rounded-xl bg-slate-900 border border-slate-800 p-4">
+      <h2 class="text-sm font-semibold text-slate-300 mb-3">Exchange feeds</h2>
+      <table class="w-full text-sm"><thead class="text-xs text-slate-500"><tr><th class="text-left font-medium pb-2">Exchange</th><th class="text-left font-medium pb-2">Order books</th><th class="text-left font-medium pb-2">Last update</th><th class="text-left font-medium pb-2">Trading</th></tr></thead>
+      <tbody id="exchanges"></tbody></table>
+      <p id="cfg" class="text-xs text-slate-500 mt-4 leading-relaxed"></p>
+    </div>
+  </section>
+
+  <!-- trades -->
+  <section class="rounded-xl bg-slate-900 border border-slate-800 p-4">
+    <h2 class="text-sm font-semibold text-slate-300 mb-3">Latest trades</h2>
+    <div class="overflow-x-auto">
+      <table class="w-full text-sm mono">
+        <thead class="text-xs text-slate-500"><tr>
+          <th class="text-left font-medium pb-2">Time</th><th class="text-left font-medium pb-2">Type</th><th class="text-left font-medium pb-2">Exchange</th>
+          <th class="text-left font-medium pb-2">Route</th><th class="text-right font-medium pb-2">Size</th><th class="text-right font-medium pb-2">Expected</th>
+          <th class="text-right font-medium pb-2">Result</th><th class="text-right font-medium pb-2">Latency</th></tr></thead>
+        <tbody id="trades"></tbody>
+      </table>
+    </div>
+    <p id="no-trades" class="text-sm text-slate-500 py-6 text-center hidden">No trades yet — the bot is waiting for an arbitrage window.</p>
+  </section>
+
+  <footer class="text-xs text-slate-600 pb-6">Updated <span id="updated">–</span>. Past results do not guarantee future results. Trading involves risk of loss.</footer>
+</div>
+
+<script>
+const $ = id => document.getElementById(id);
+const esc = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const num = (n, d = 2) => n == null ? '–' : Number(n).toLocaleString('en-US', {minimumFractionDigits: d, maximumFractionDigits: d});
+const sgn = n => n > 0 ? '+' : '';
+const cls = n => n > 0 ? 'text-emerald-400' : n < 0 ? 'text-red-400' : 'text-slate-300';
+const hms = ts => new Date(ts * 1000).toLocaleTimeString('en-GB');
+let current = 'running';
+
+function dur(s) {
+  const d = Math.floor(s / 86400), h = Math.floor(s % 86400 / 3600), m = Math.floor(s % 3600 / 60);
+  return (d ? d + 'd ' : '') + (h || d ? h + 'h ' : '') + m + 'm ' + (s % 60) + 's';
+}
+
+function drawChart(series) {
+  const svg = $('chart');
+  if (!series || series.length < 2) {
+    svg.innerHTML = '<text x="400" y="85" text-anchor="middle" fill="#64748b" font-size="14">Waiting for trades…</text>';
+    $('chart-last').textContent = '';
+    return;
+  }
+  const ys = series.map(p => p[1]), min = Math.min(0, ...ys), max = Math.max(0, ...ys), span = (max - min) || 1;
+  const x = i => 10 + i * 780 / (series.length - 1), y = v => 150 - (v - min) / span * 140;
+  const pts = series.map((p, i) => x(i).toFixed(1) + ',' + y(p[1]).toFixed(1)).join(' ');
+  const last = ys[ys.length - 1], color = last >= 0 ? '#34d399' : '#f87171';
+  svg.innerHTML =
+    '<line x1="10" x2="790" y1="' + y(0) + '" y2="' + y(0) + '" stroke="#334155" stroke-dasharray="4 4"/>' +
+    '<polyline fill="none" stroke="' + color + '" stroke-width="2" points="' + pts + '"/>';
+  $('chart-last').textContent = 'last ' + sgn(last) + num(last, 2) + ' USDT · ' + series.length + ' trades shown';
+}
+
+function render(d) {
+  current = d.status;
+  const st = $('status');
+  st.textContent = d.status === 'running' ? 'RUNNING' : d.status === 'paused' ? 'PAUSED' : 'EMERGENCY STOP';
+  st.className = 'px-2.5 py-1 rounded-full text-xs font-bold ' +
+    (d.status === 'running' ? 'bg-emerald-500/20 text-emerald-300' : d.status === 'paused' ? 'bg-amber-500/20 text-amber-300' : 'bg-red-500/20 text-red-300');
+  $('mode').textContent = d.mode;
+  $('warn').classList.toggle('hidden', !d.mode.includes('REAL'));
+  $('breaker').classList.toggle('hidden', d.status !== 'breaker');
+  $('limit').textContent = d.loss_limit_usdt;
+  $('uptime').textContent = dur(d.uptime_s);
+  $('toggle').textContent = d.status === 'running' ? 'Pause trading' : 'Resume trading';
+  $('toggle').className = 'px-4 py-1.5 rounded-md text-sm font-semibold hover:opacity-90 ' +
+    (d.status === 'running' ? 'bg-amber-500 text-slate-900' : 'bg-emerald-500 text-slate-900');
+
+  $('k-pnl').textContent = sgn(d.pnl_usdt) + num(d.pnl_usdt, 2);
+  $('k-pnl').className = 'text-2xl font-bold mt-1 ' + cls(d.pnl_usdt);
+  $('k-trades').textContent = d.executed + (d.win_rate != null ? ' (' + d.win_rate + '%)' : '');
+  $('k-wl').textContent = d.wins + ' won · ' + d.losses + ' lost' + (d.aborted ? ' · ' + d.aborted + ' aborted' : '');
+  $('k-opps').textContent = d.opportunities;
+  $('k-rej').textContent = 'rejected on re-check ' + d.rejected_recheck + ' · slippage ' + d.rejected_slippage;
+  $('k-tps').textContent = num(d.ticks_per_s, 0);
+  $('k-scan').textContent = d.scan_p50_us + ' / ' + d.scan_p99_us + ' µs';
+  $('k-exec').textContent = d.exec_p50_ms == null ? '–' : num(d.exec_p50_ms, 1) + ' ms';
+  drawChart(d.pnl_series);
+
+  $('wallets').innerHTML = Object.keys(d.wallets).length ? Object.entries(d.wallets).map(([n, w]) =>
+    '<div><div class="flex justify-between mb-1"><b>' + esc(n) + '</b><span class="text-slate-400">≈ ' + num(w.equity_usdt, 2) + ' USDT</span></div>' +
+    '<div class="flex flex-wrap gap-2">' + Object.entries(w.balances).map(([a, v]) =>
+      '<span class="px-2 py-1 rounded bg-slate-800 mono text-xs">' + esc(a) + ' ' + num(v, v < 1 ? 6 : 2) + '</span>').join('') + '</div></div>').join('')
+    : '<span class="text-slate-500">No balance data.</span>';
+
+  $('exchanges').innerHTML = d.exchanges.map(e => {
+    const ok = e.books_fresh === e.books_total;
+    return '<tr class="border-t border-slate-800"><td class="py-2 font-semibold">' + esc(e.name) + '</td>' +
+      '<td class="py-2 ' + (ok ? 'text-emerald-400' : 'text-amber-400') + '">' + e.books_fresh + ' / ' + e.books_total + ' live</td>' +
+      '<td class="py-2 text-slate-400">' + (e.last_update_ms == null ? '–' : num(e.last_update_ms, 0) + ' ms ago') + '</td>' +
+      '<td class="py-2 text-slate-400">' + (e.tradable ? 'orders enabled' : 'signals only') + '</td></tr>';
+  }).join('');
+  const c = d.config;
+  $('cfg').textContent = 'Pairs: ' + c.symbols.join(', ') + ' · fee ' + c.fee_bps + ' bps/leg · min profit ' + c.min_profit_bps +
+    ' bps · slippage tolerance ' + c.slippage_bps + ' bps · max size ' + num(c.max_notional, 0) + ' · cross-exchange ' + (c.cross_exchange ? 'on' : 'off');
+
+  $('no-trades').classList.toggle('hidden', d.recent_trades.length > 0);
+  $('trades').innerHTML = d.recent_trades.map(t =>
+    '<tr class="border-t border-slate-800"><td class="py-1.5 text-slate-400">' + hms(t.ts) + '</td>' +
+    '<td class="py-1.5">' + esc(t.kind) + '</td><td class="py-1.5">' + esc(t.exchange) + '</td>' +
+    '<td class="py-1.5 text-slate-400">' + esc(t.route) + '</td>' +
+    '<td class="py-1.5 text-right">' + num(t.size, 0) + ' ' + esc(t.asset) + '</td>' +
+    '<td class="py-1.5 text-right text-slate-400">' + sgn(t.expected_bps) + num(t.expected_bps, 1) + ' bps</td>' +
+    '<td class="py-1.5 text-right font-semibold ' + cls(t.pnl) + '">' + sgn(t.pnl) + num(t.pnl, 4) + ' ' + esc(t.asset) + ' (' + sgn(t.pnl_bps) + num(t.pnl_bps, 1) + ' bps)</td>' +
+    '<td class="py-1.5 text-right text-slate-500">' + num(t.latency_ms, 1) + ' ms</td></tr>').join('');
+  $('updated').textContent = new Date(d.now * 1000).toLocaleTimeString('en-GB');
+}
+
+async function tick() {
+  try {
+    const r = await fetch('/api/status', {cache: 'no-store'});
+    if (!r.ok) throw new Error(r.status);
+    render(await r.json());
+    $('conn').innerHTML = '<i class="inline-block w-2 h-2 rounded-full bg-emerald-400"></i> live';
+  } catch (e) {
+    $('conn').innerHTML = '<i class="inline-block w-2 h-2 rounded-full bg-red-500"></i> disconnected';
+  }
+}
+
+$('toggle').addEventListener('click', async () => {
+  const resuming = current !== 'running';
+  if (resuming && $('mode').textContent.includes('REAL') && !confirm('Resume trading with REAL MONEY?')) return;
+  $('toggle').disabled = true;
+  try {
+    await fetch(resuming ? '/api/resume' : '/api/pause', {method: 'POST', headers: {'X-Requested-With': 'dashboard'}});
+  } finally {
+    $('toggle').disabled = false;
+    tick();
+  }
+});
+
+setInterval(tick, 1000);
+tick();
+</script>
+</body>
+</html>
